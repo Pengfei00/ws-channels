@@ -38,7 +38,6 @@ func main() {
 			IdleTimeout: 60 * time.Second,
 			Wait:        true,
 		},
-		MemoryConfig: &config.MemoryConfig{},
 	}
 
 	server := core.NewServer(&c, context.Background(), onConnect, onDisconnect, onMessage)

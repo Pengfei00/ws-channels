@@ -11,11 +11,6 @@ const (
 	FromServer = 2
 )
 
-type Message struct {
-	MessageType int    `json:"message_type"`
-	Data        []byte `json:"data"`
-}
-
 var DefaultUpgrader = websocket.Upgrader{
 	ReadBufferSize:   1024,
 	WriteBufferSize:  1024,
@@ -24,3 +19,4 @@ var DefaultUpgrader = websocket.Upgrader{
 		return true
 	},
 }
+
