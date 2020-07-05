@@ -2,9 +2,11 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
+	"github.com/gorilla/websocket"
 	"testing"
+	"ws-channels/common"
 	"ws-channels/config"
-	"ws-channels/layer/common"
 )
 
 type msg struct {
@@ -88,39 +90,49 @@ func GetChannels(layer *Layer, groups []string, t *testing.T) {
 
 func GroupSend(layer *Layer, groups []string, t *testing.T) {
 	{
-		sendData := msg{
+		content, _ := json.Marshal(msg{
 			Id:      1,
 			Content: "测试群发结构体",
+		})
+		sendData := common.Message{
+			MessageType: websocket.TextMessage,
+			Data:        content,
 		}
 		if err := layer.GroupSend(sendData, groups[0]); err != nil {
 			t.Error(err)
 		}
 		d := <-layer.ReceiverMessage
-		d.SerializerMessage(&msg{})
-		if len(d.Channels) != 2 || d.Message != sendData {
+		if len(d.Channels) != 2 || string(d.Message.Data) != string(content) {
 			t.Error("error", d.Channels)
 		}
 	}
 	{
-		sendData := "测试文本消息"
+		content := []byte("测试文本消息")
+		sendData := common.Message{
+			MessageType: websocket.TextMessage,
+			Data:        content,
+		}
 		if err := layer.GroupSend(sendData, groups...); err != nil {
 			t.Error(err)
 		}
 		d := <-layer.ReceiverMessage
-		d.SerializerMessage("")
 
-		if len(d.Channels) != 3 || d.Message != sendData {
+		if len(d.Channels) != 3 || string(d.Message.Data) != string(content) {
 			t.Error("error", d.Channels)
 		}
 	}
 
 	{
-		sendData := "测试文本消息"
+		content := []byte("测试文本消息")
+		sendData := common.Message{
+			MessageType: websocket.TextMessage,
+			Data:        content,
+		}
 		if err := layer.GroupSend(sendData, groups[1]); err != nil {
 			t.Error(err)
 		}
 		d := <-layer.ReceiverMessage
-		d.SerializerMessage("")
+
 		if len(d.Channels) != 1 {
 			t.Error("error")
 		}
@@ -130,13 +142,15 @@ func GroupSend(layer *Layer, groups []string, t *testing.T) {
 
 func Send(layer *Layer, channels []string, t *testing.T) {
 	data := "测试单发消息"
-	if err := layer.Send(data, channels[0]); err != nil {
+	d := common.Message{websocket.TextMessage, []byte(data)}
+	if err := layer.Send(d, channels[0]); err != nil {
 		t.Error("error")
 	}
-	d := <-layer.ReceiverMessage
-	d.SerializerMessage("")
-	if d.Message != data || d.Channels[0] != channels[0] {
-		t.Error("error")
+	{
+		d := <-layer.ReceiverMessage
+		if string(d.Message.Data) != data || d.Channels[0] != channels[0] {
+			t.Error("error")
+		}
 	}
 
 }

@@ -5,14 +5,12 @@ import "time"
 type LayerEnum int
 
 const (
-	RedisLayer  LayerEnum = 1
-	MemoryLayer           = 2
+	RedisLayer LayerEnum = 1
 )
 
 type Config struct {
-	Layer        LayerEnum
-	RedisConfig  *RedisConfig
-	MemoryConfig *MemoryConfig
+	Layer       LayerEnum
+	RedisConfig *RedisConfig
 }
 
 type RedisConfig struct {
@@ -23,7 +21,4 @@ type RedisConfig struct {
 	MaxIdle     int
 	IdleTimeout time.Duration
 	Wait        bool
-}
-
-type MemoryConfig struct {
 }

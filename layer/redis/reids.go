@@ -9,13 +9,13 @@ import (
 	"runtime/debug"
 	"strings"
 	"time"
+	"ws-channels/common"
 	"ws-channels/config"
-	"ws-channels/layer/common"
 )
 
 type sendLayerGroupMessage struct {
-	Groups  []string    `json:"groups"`
-	Message interface{} `json:"message"`
+	Groups  []string       `json:"groups"`
+	Message common.Message `json:"message"`
 }
 
 type Layer struct {
@@ -70,7 +70,7 @@ func (layer Layer) GroupDiscard(channel string, groups ...string) error {
 	return nil
 }
 
-func (layer Layer) GroupSend(message interface{}, groups ...string) error {
+func (layer Layer) GroupSend(message common.Message, groups ...string) error {
 	layer.sendGroupMessage <- sendLayerGroupMessage{
 		Groups:  groups,
 		Message: message,
@@ -121,7 +121,7 @@ func (layer Layer) getPool() *redis.Pool {
 	return layer.client[0]
 }
 
-func (layer Layer) Send(message interface{}, channels ...string) error {
+func (layer Layer) Send(message common.Message, channels ...string) error {
 	for _, channel := range channels {
 		noneLocalName := layer.noneLocalName(channel)
 		d := common.ReceiverLayerMessage{
@@ -133,7 +133,7 @@ func (layer Layer) Send(message interface{}, channels ...string) error {
 	return nil
 }
 
-func (layer Layer) userKeysMessageToMap(channelMap []string, message interface{}) map[string]*common.ReceiverLayerMessage {
+func (layer Layer) userKeysMessageToMap(channelMap []string, message common.Message) map[string]*common.ReceiverLayerMessage {
 	result := make(map[string]*common.ReceiverLayerMessage)
 	for _, channel := range channelMap {
 		noneLocalName := layer.noneLocalName(channel)
@@ -183,9 +183,8 @@ func (layer *Layer) receiverTask(ctx context.Context) {
 				continue
 			}
 			if data != nil {
-				var object json.RawMessage
-				msg := common.ReceiverLayerMessage{Message: &object}
-				_ = json.Unmarshal(data[1], &msg)
+				var msg common.ReceiverLayerMessage
+				json.Unmarshal(data[1], &msg)
 				layer.ReceiverMessage <- msg
 			}
 		}
@@ -201,8 +200,8 @@ func (layer Layer) sendToRedis(client redis.Conn, serverKey string, data common.
 		layer.ReceiverMessage <- data
 	} else {
 		d, _ := json.Marshal(data)
-		_, _ = client.Do("LPUSH", serverKey, d)
-		_, _ = client.Do("EXPIRE", serverKey, layer.GroupExpiry)
+		client.Do("LPUSH", serverKey, d)
+		client.Do("EXPIRE", serverKey, layer.GroupExpiry)
 	}
 }
 

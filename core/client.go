@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/gorilla/websocket"
 	"net/http"
+	"ws-channels/common"
 )
 
 type Client struct {
@@ -13,7 +14,7 @@ type Client struct {
 	isClose  bool
 	cancel   context.CancelFunc
 	inChan   chan string
-	outChan  chan Message
+	outChan  chan common.Message
 	wsSocket *websocket.Conn
 	server   *Server
 }
@@ -49,7 +50,7 @@ func (c Client) writeLoop(ctx context.Context) {
 }
 
 func (c Client) Send(messageType int, data []byte) {
-	c.outChan <- Message{
+	c.outChan <- common.Message{
 		MessageType: messageType,
 		Data:        data,
 	}

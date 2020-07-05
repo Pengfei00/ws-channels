@@ -2,16 +2,14 @@ package core
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
-	"reflect"
+	"sync"
 	"time"
+	"ws-channels/common"
 	"ws-channels/config"
-	"ws-channels/layer/common"
-	"ws-channels/layer/memory"
 	"ws-channels/layer/redis"
 )
 
@@ -25,6 +23,7 @@ type Server struct {
 	receiverLayerMessage chan common.ReceiverLayerMessage
 	receiverGroupMessage chan common.ReceiverLayerMessage
 	upgrader             websocket.Upgrader
+	localLayer           MemoryLayer
 }
 
 func NewServer(
@@ -44,12 +43,11 @@ func NewServer(
 		Ctx:                  ctx,
 		receiverLayerMessage: receiverMessage,
 		upgrader:             DefaultUpgrader,
+		localLayer:           MemoryLayer{groups: new(sync.Map)},
 	}
 	switch c.Layer {
 	case config.RedisLayer:
 		server.Layer = redis.NewLayer(receiverMessage, c.RedisConfig)
-	case config.MemoryLayer:
-		server.Layer = memory.NewLayer(receiverMessage, c.MemoryConfig)
 	default:
 		return nil
 	}
@@ -102,7 +100,7 @@ func (s *Server) Handler(resp http.ResponseWriter, req *http.Request) {
 		})
 		client.wsSocket = wsSocket
 		client.inChan = make(chan string, 1000)
-		client.outChan = make(chan Message, 1000)
+		client.outChan = make(chan common.Message, 1000)
 		s.Clients[client.Channel] = client
 		go client.readLoop(ctx)
 		go client.writeLoop(ctx)
@@ -120,19 +118,8 @@ func (s *Server) Handler(resp http.ResponseWriter, req *http.Request) {
 
 func (s Server) sendToChannel(channel string, msg common.ReceiverLayerMessage) error {
 	if client, ok := s.Clients[channel]; ok {
-		switch value := msg.Message.(type) {
-		case Message:
-			s.OnMessage(value.MessageType, value.Data, FromServer, client)
-		case *json.RawMessage:
-			var message Message
-			if err := json.Unmarshal(*value, &message); err != nil {
-				return err
-			}
-			s.OnMessage(message.MessageType, message.Data, FromServer, client)
-		default:
-			// todo
-			fmt.Println("UnKnow:", reflect.TypeOf(value))
-		}
+		s.OnMessage(msg.Message.MessageType, msg.Message.Data, FromServer, client)
+
 	}
 	return nil
 }
@@ -175,28 +162,26 @@ func (c *Client) Close(code int, reason string) {
 }
 
 func (s Server) Send(messageType int, data []byte, channels ...string) error {
-	return s.Layer.Send(Message{
-		MessageType: messageType,
-		Data:        data,
-	}, channels...)
+	return s.Layer.Send(common.Message{MessageType: messageType, Data: data,}, channels...)
 }
 func (s Server) GroupAdd(channel string, groups ...string) error {
 	if err := s.Layer.GroupAdd(channel, groups...); err != nil {
 		return err
 	}
+	s.localLayer.GroupAdd(channel, groups...)
 	return nil
 }
 func (s Server) GroupDiscard(channel string, groups ...string) error {
 	if err := s.Layer.GroupDiscard(channel, groups...); err != nil {
 		return err
 	}
+	s.localLayer.GroupDiscard(channel, groups...)
 	return nil
 
 }
 func (s Server) GroupSend(messageType int, data []byte, groups ...string) error {
-	message := Message{
+	return s.Layer.GroupSend(common.Message{
 		MessageType: messageType,
 		Data:        data,
-	}
-	return s.Layer.GroupSend(message, groups...)
+	}, groups...)
 }
